@@ -94,19 +94,83 @@ class MyCustomElement extends HTMLElement {
       // this._selection
     });
   }
+
+  // 自定义删除方法，会清理空标签
+  deleteSelectionAndCleanup() {
+    const selection = this._shadow.getSelection();
+    if (!selection.rangeCount) return;
+
+    const range = selection.getRangeAt(0);
+    const startContainer = range.startContainer;
+    const endContainer = range.endContainer;
+    
+    // 删除选中的内容
+    selection.deleteFromDocument();
+    
+    // 清理空标签
+    this.cleanupEmptyElements(startContainer, endContainer);
+  }
+
+  // 清理空标签的方法
+  cleanupEmptyElements(startContainer, endContainer) {
+    // 获取所有可能受影响的元素
+    const affectedElements = new Set();
+    
+    // 从起始容器向上遍历，收集所有父元素
+    let current = startContainer;
+    while (current && current !== this._editor) {
+      if (current.nodeType === Node.ELEMENT_NODE) {
+        affectedElements.add(current);
+      }
+      current = current.parentNode;
+    }
+    
+    // 从结束容器向上遍历，收集所有父元素
+    current = endContainer;
+    while (current && current !== this._editor) {
+      if (current.nodeType === Node.ELEMENT_NODE) {
+        affectedElements.add(current);
+      }
+      current = current.parentNode;
+    }
+    
+    // 检查并删除空标签（除了p标签，因为p标签是必需的）
+    affectedElements.forEach(element => {
+      if (element.tagName.toLowerCase() !== 'p' && 
+          element.tagName.toLowerCase() !== 'div' && 
+          element !== this._editor) {
+        // 检查元素是否为空或只包含空白字符
+        const textContent = element.textContent || '';
+        const hasOnlyWhitespace = !textContent.trim();
+        const hasNoChildren = element.children.length === 0;
+        
+        if (hasOnlyWhitespace && hasNoChildren) {
+          // 如果父元素存在，将子节点移动到父元素
+          if (element.parentNode) {
+            while (element.firstChild) {
+              element.parentNode.insertBefore(element.firstChild, element);
+            }
+            element.parentNode.removeChild(element);
+          }
+        }
+      }
+    });
+  }
+
   insertItalic() {
     const range = this._selection.getRangeAt(0);
-    const cloneRange = range.cloneRange();
     const content = this._selection.toString();
     console.log("斜体插入的内容", content);
-    // const template = `<div style="font-weight: 800;">${content}</div>`;
-    this._selection.deleteFromDocument();
+    
+    // 使用自定义删除方法
+    this.deleteSelectionAndCleanup();
+    
     const dom = document.createElement("span");
     dom.style.fontStyle = "italic";
     dom.innerHTML = content;
-    // dom.innerHTML = template;
     range.insertNode(dom);
   }
+
   initRangeEvent(dom) {
     const selection = this._shadow.getSelection();
 
@@ -138,15 +202,15 @@ class MyCustomElement extends HTMLElement {
   }
   insertBold() {
     const range = this._selection.getRangeAt(0);
-    const cloneRange = range.cloneRange();
     const content = this._selection.toString();
     console.log("加粗插入的内容", content);
-    // const template = `<div style="font-weight: 800;">${content}</div>`;
-    this._selection.deleteFromDocument();
+    
+    // 使用自定义删除方法
+    this.deleteSelectionAndCleanup();
+    
     const dom = document.createElement("span");
     dom.style.fontWeight = 800;
     dom.innerHTML = content;
-    // dom.innerHTML = template;
     range.insertNode(dom);
   }
   insertImage() {
